@@ -10,10 +10,7 @@
     "start": "electron ."
   },
   "build": {
-    "appId": "your.id",
-    "mac": {
-      "category": "your.app.category.type"
-    }
+    "appId": "au.com.jacksonmoore.beatsaver-downloader"
   },
   "keywords": [],
   "author": {
