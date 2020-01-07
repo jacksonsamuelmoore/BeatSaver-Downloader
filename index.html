@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hello World!</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+
+    <link rel="stylesheet" href="node_modules/material-components-web/dist/material-components-web.css">
+    <script src="node_modules/material-components-web/dist/material-components-web.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <style>
+        .no-margin {
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+    </style>
+    <script>
+        const axios = require('axios');
+        var unzip = require('unzip-stream');
+        var rateLimit = require('axios-rate-limit');
+        const http = rateLimit(axios.create(), { maxRequests: 2, perMilliseconds: 1000, maxRPS: 2 })
+        async function getList(ammount) {
+            logAdd("Getting URLs list")
+            var urls = [];
+            for (i = 0; i < ammount; i++) {
+                logAdd('Getting page ' + i)
+                await http.get("https://beatsaver.com/api/maps/downloads/" + i).then(resp => {
+                    resp.data.docs.forEach((i) => {
+                        logAdd("Got URL for: " + i.key + "(" + i.metadata.songName.replace(/[&\/\\#,+()$~%.'"|:*?<>{}]/g, '') + " - " + i.metadata.songAuthorName.replace(/[&\/\\#,+()$~%.'"|:*?<>{}]/g, '') + ")")
+                        urls.push([i.directDownload, i.key + "(" + i.metadata.songName.replace(/[&\/\\#,+()$~%.'"|:*?<>{}]/g, '') + " - " + i.metadata.songAuthorName.replace(/[&\/\\#,+()$~%.'"|:*?<>{}]/g, '') + ")"])
+                    });
+                })
+            }
+            return urls
+        }
+
+    </script>
+</head>
+
+<body class="mdc-typography">
+    <div style="-webkit-app-region: drag; overflow: hidden;padding: 50px; padding-bottom: 100px; margin: 0px;
+        background-color: white; border-radius: 16px;" class="mdc-elevation--z4">
+        <h4 class=" mdc-typography--headline4 no-margin">BeatSaver Downloader</h4>
+        <h6 class="mdc-typography--subtitle1 no-margin">By Jackson Moore</h6>
+        <div class="mdc-card mdc-card--outlined" style="margin-top: 16px; height: 300px;">
+
+            <div id="form" style="padding: 16px; -webkit-app-region: no-drag">
+                <h5 class="mdc-typography--headline5 no-margin">Download Directory</h5>
+                <button class="mdc-button mdc-button--raised" style="display: block; margin-bottom: 16px;"
+                    onclick="dirDialog()">
+                    <div class="mdc-button__ripple"></div>
+                    <span class="mdc-button__label">Select Directory</span>
+                </button>
+                <div class="mdc-text-field mdc-text-field--outlined download-dir-input">
+                    <input type="text" id="tf-outlined" name="folder" required class="mdc-text-field__input">
+                    <div class="mdc-notched-outline">
+                        <div class="mdc-notched-outline__leading"></div>
+                        <div class="mdc-notched-outline__notch">
+                            <label for="tf-outlined" class="mdc-floating-label">Download Folder</label>
+                        </div>
+                        <div class="mdc-notched-outline__trailing"></div>
+                    </div>
+                </div>
+
+                <h5 class="mdc-typography--headline5 no-margin" style="margin-top: 16px;">Number of Pages</h5>
+                <div class="mdc-text-field mdc-text-field--outlined pages-input">
+                    <input id="pages" name="pages" type="number" required class="mdc-text-field__input">
+                    <div class="mdc-notched-outline">
+                        <div class="mdc-notched-outline__leading"></div>
+                        <div class="mdc-notched-outline__notch">
+                            <label for="tf-outlined" class="mdc-floating-label">Number of Pages</label>
+                        </div>
+                        <div class="mdc-notched-outline__trailing"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button class="mdc-fab"
+            style="-webkit-app-region: no-drag; position: absolute; bottom: 30px; right: 40px; background-color: #6200ee;"
+            aria-label="Next" onclick="go()">
+            <div class="mdc-fab__ripple"></div>
+            <span class="mdc-fab__icon material-icons">navigate_next</span>
+        </button>
+        <button class="mdc-icon-button material-icons close"
+            style="-webkit-app-region: no-drag; position: absolute; top: 16px; right: 16px;"
+            onclick="remote.getCurrentWindow().close()">close</button>
+        <button class="mdc-icon-button material-icons minimize"
+            style="-webkit-app-region: no-drag; position: absolute; top: 16px; right: 56px;"
+            onclick="remote.getCurrentWindow().minimize()">minimize</button>
+    </div>
+    <script>
+        /*
+            INIT STUFF
+        */
+        downloadDir = ''
+        pages = 0
+        var fs = require('fs');
+        /*
+            INIT MATERIAL COMPONENTS
+        */
+        const selector = '.mdc-button, .mdc-fab';
+        const ripples = [].map.call(document.querySelectorAll(selector), function (el) {
+            return new mdc.ripple.MDCRipple(el);
+        });
+        const downloadDirInput = new mdc.textField.MDCTextField(document.querySelector('.download-dir-input'));
+        const pagesInput = new mdc.textField.MDCTextField(document.querySelector('.pages-input'));
+        const closeButtonRipple = new mdc.ripple.MDCRipple(document.querySelector('.close'));
+        closeButtonRipple.unbounded = true;
+        const minimizeButtonRipple = new mdc.ripple.MDCRipple(document.querySelector('.minimize'));
+        minimizeButtonRipple.unbounded = true;
+        /*
+            ELECTRON STUFF
+        */
+        let { remote } = require('electron');
+
+        function dirDialog() {
+            remote.dialog.showOpenDialog({ properties: ['openDirectory'] }).then((res) => {
+                downloadDirInput.value = res.filePaths
+                downloadDir = res.filePaths[0]
+            })
+        }
+
+
+        /*
+            ACTUAL STUFF
+        */
+        checkForm = () => {
+
+            if (!fs.existsSync(downloadDirInput.value)) {
+                downloadDirInput.foundation_.setValid(false)
+                return false
+            }
+            else if (Number.isNaN(parseInt(pagesInput.value))) {
+                pagesInput.foundation_.setValid(false)
+                return false
+            }
+            else {
+                pagesInput.foundation_.setValid(true)
+                downloadDirInput.foundation_.setValid(true)
+                return true
+            }
+
+
+        }
+        go = () => {
+            if (checkForm()) {
+                document.getElementById('form').innerHTML = '<h5 class="mdc-typography--headline5 no-margin" id="download-percent">Downloading:</h5><div role="progressbar" class="mdc-linear-progress" style="margin-top: 16px">  <div class="mdc-linear-progress__buffering-dots"></div>  <div class="mdc-linear-progress__buffer"></div>  <div class="mdc-linear-progress__bar mdc-linear-progress__primary-bar">    <span class="mdc-linear-progress__bar-inner"></span>  </div>  <div class="mdc-linear-progress__bar mdc-linear-progress__secondary-bar">    <span class="mdc-linear-progress__bar-inner"></span>  </div></div> <h5 class="mdc-typography--headline5 no-margin">Logs</h5><div id="logs" class="mdc-text-field mdc-text-field--textarea mdc-text-field--disabled">  <textarea id="textarea" class="mdc-text-field__input" rows="5" cols="40"></textarea>  <div class="mdc-notched-outline">    <div class="mdc-notched-outline__leading"></div>    <div class="mdc-notched-outline__notch">      <label for="textarea" class="mdc-floating-label">Logs Here</label>    </div>    <div class="mdc-notched-outline__trailing"></div>  </div></div>'
+                const linearProgress = new mdc.linearProgress.MDCLinearProgress(document.querySelector('.mdc-linear-progress'));
+                const textField = new mdc.textField.MDCTextField(document.getElementById('logs'));
+                textField.disabled = true
+                document.getElementsByClassName('mdc-fab')[0].remove()
+                downloadDir = downloadDirInput.value
+                logAdd = function (text) {
+                    textField.value = textField.value + '\n' + text
+                    document.getElementById('logs').children[0].scrollTop = document.getElementById('logs').children[0].scrollHeight
+                }
+                const testlog = ''
+                getList(pagesInput.value, testlog).then(res => {
+                    console.log(testlog)
+                    logAdd('Done')
+                    res.forEach((i) => {
+                        logAdd("Getting " + i[1])
+                        http({
+                            method: "get",
+                            url: "https://beatsaver.com" + i[0],
+                            responseType: "stream"
+                        }).then(function (response) {
+                            logAdd("Writing " + i[1])
+                            console.log(Number(pagesInput.value) * 10)
+                            linearProgress.foundation_.setProgress(linearProgress.foundation_.progress_ + (100 / (Number(pagesInput.value) * 10) / 100))
+                            response.data.pipe(unzip.Extract({ path: downloadDir + '\\' + i[1] }))
+                        })
+
+                    })
+                }, err => logAdd(err))
+            }
+        } 
+    </script>
+</body>
+
+</html>
