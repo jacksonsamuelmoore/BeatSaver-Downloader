@@ -19,7 +19,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.19.0",
+    "axios": "^0.21.1",
     "axios-rate-limit": "^1.2.1",
     "material-components-web": "^4.0.0",
     "unzip-stream": "^0.3.0"
